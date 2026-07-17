@@ -205,7 +205,10 @@ export function Agenda() {
                           }}
                           className="px-2 py-1 cursor-pointer overflow-hidden"
                         >
-                          <p className="text-[10px] font-bold leading-tight truncate" style={{ color: ev.color }}>{ev.title}</p>
+                          <p className="text-[10px] font-bold leading-tight truncate flex items-center gap-1" style={{ color: ev.color }}>
+                            <Icon className="w-2.5 h-2.5 shrink-0" />
+                            {ev.title}
+                          </p>
                           {height > 36 && <p className="text-[9px] text-muted-foreground">{ev.time}</p>}
                         </motion.div>
                       )

@@ -1,24 +1,26 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Zap, Eye, EyeOff, ArrowRight, Loader2, User, Mail, Lock, Building } from 'lucide-react'
+import { Eye, EyeOff, ArrowRight, Loader2, User, Mail, Lock, Building } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useApp } from '@/contexts/AppContext'
 import { useToast } from '@/components/ui/toast'
+import logoIcon from '@/assets/logo-icon.png'
+import logoFull from '@/assets/logo-white.png'
 
 type Mode = 'login' | 'register'
 
 const stats = [
   { value: '3x', label: 'Mais conversões' },
-  { value: '24/7', label: 'Disponibilidade' },
-  { value: '30s', label: 'Tempo de resposta' },
+  { value: '24/7', label: 'Sempre ativos' },
+  { value: '+15h', label: 'Poupadas por mês' },
 ]
 
 const features = [
-  '✦  Agentes de IA ilimitados',
-  '✦  CRM com pipeline Kanban',
-  '✦  Análise em tempo real',
-  '✦  Integração WhatsApp Business',
+  '✦  Atende seus clientes direto no seu WhatsApp',
+  '✦  Responde, agenda e qualifica sem você tocar no celular',
+  '✦  Organiza tudo num painel só, sem planilha',
+  '✦  Analytics em tempo real pra acompanhar o resultado',
 ]
 
 export function Login() {
@@ -72,12 +74,12 @@ export function Login() {
           transition={{ duration: 0.7 }}
           className="relative z-10 text-center max-w-md w-full"
         >
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-600 to-blue-500 flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-violet-500/30">
-            <Zap className="w-8 h-8 text-white" />
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-600 to-blue-500 flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-violet-500/30 p-3">
+            <img src={logoIcon} alt="AgentAI" className="w-full h-full object-contain" />
           </div>
-          <h2 className="text-3xl font-bold mb-3 gradient-text">AgentAI Platform</h2>
+          <h2 className="text-3xl font-bold mb-3 gradient-text">Seu WhatsApp, atendido por você.<br />Sem você precisar tocar nele.</h2>
           <p className="text-muted-foreground leading-relaxed mb-8">
-            Automatize atendimento, qualifique leads e feche mais vendas com inteligência artificial de ponta.
+            Seu agente de IA entra direto no seu WhatsApp e conversa com seus clientes por você — respondendo, qualificando e agendando, enquanto você foca no que só você pode fazer.
           </p>
 
           <div className="grid grid-cols-3 gap-3 mb-8">
@@ -102,10 +104,7 @@ export function Login() {
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="flex items-center gap-3 mb-8 lg:hidden">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-violet-600 to-blue-500 flex items-center justify-center shadow-lg">
-              <Zap className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-bold text-lg gradient-text">AgentAI</span>
+            <img src={logoFull} alt="AgentAI Platform" className="h-7 w-auto" />
           </div>
 
           {/* Tab switcher */}
@@ -196,7 +195,7 @@ export function Login() {
               >
                 <div>
                   <h1 className="text-2xl font-bold mb-1">Criar sua conta</h1>
-                  <p className="text-sm text-muted-foreground">Comece gratuitamente, sem cartão de crédito.</p>
+                  <p className="text-sm text-muted-foreground">Comece agora. Sem cartão, sem compromisso.</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

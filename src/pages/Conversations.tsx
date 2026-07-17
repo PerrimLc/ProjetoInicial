@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, Search, MoreVertical, Phone, Video, Smile, Paperclip, Bot, Plus, Archive } from 'lucide-react'
+import { Send, Search, MoreVertical, Phone, Video, Smile, Paperclip, Bot, Plus, Archive, ChevronDown } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -10,6 +10,7 @@ import { Modal } from '@/components/ui/modal'
 import { useApp } from '@/contexts/AppContext'
 import { useToast } from '@/components/ui/toast'
 import { getRelativeTime } from '@/lib/utils'
+import { agentProfiles } from '@/lib/aiEngine'
 import type { Conversation } from '@/types'
 
 const filters = ['Todos', 'Novo Lead', 'Em Atendimento', 'Finalizado']
@@ -28,7 +29,9 @@ export function Conversations() {
   const [isTyping, setIsTyping] = useState(false)
   const [showNewConvModal, setShowNewConvModal] = useState(false)
   const [newContact, setNewContact] = useState({ name: '', phone: '', company: '' })
+  const [showScrollDown, setShowScrollDown] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
 
   const selected = conversations.find(c => c.id === selectedId)
 
@@ -45,6 +48,18 @@ export function Conversations() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [selected?.messages])
+
+  // Scroll down button
+  const handleScroll = () => {
+    const el = messagesContainerRef.current
+    if (!el) return
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    setShowScrollDown(distFromBottom > 120)
+  }
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
 
   // Detect when AI is "typing"
   useEffect(() => {
@@ -192,29 +207,72 @@ export function Conversations() {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div
+            ref={messagesContainerRef}
+            onScroll={handleScroll}
+            className="flex-1 overflow-y-auto p-4 space-y-4 relative"
+          >
+            {/* Date separator */}
+            <div className="flex items-center gap-3 my-2">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-[10px] text-muted-foreground px-2">Hoje</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+
             <AnimatePresence initial={false}>
               {selected.messages.map((msg, i) => {
                 const isUser = msg.sender === 'user'
+                const agentProfile = agentProfiles[selected.agentName ?? ''] ?? agentProfiles['Aria']
+                const agentColor = agentProfile.color
+
                 return (
-                  <motion.div key={msg.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i < 5 ? i * 0.04 : 0 }}
-                    className={`flex ${isUser ? 'justify-start' : 'justify-end'} items-end gap-2`}>
+                  <motion.div
+                    key={msg.id}
+                    initial={{ opacity: 0, y: 12, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ delay: i < 6 ? i * 0.035 : 0, duration: 0.25 }}
+                    className={`flex ${isUser ? 'justify-start' : 'justify-end'} items-end gap-2.5`}
+                  >
                     {isUser && (
                       <Avatar className="w-7 h-7 shrink-0 mb-1">
-                        <AvatarFallback className="bg-gradient-to-br from-violet-500/30 to-blue-500/30 text-[10px]">
+                        <AvatarFallback className="bg-gradient-to-br from-violet-500/30 to-blue-500/30 text-[10px] font-bold">
                           {selected.contact.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                         </AvatarFallback>
                       </Avatar>
                     )}
-                    <div className={`max-w-[70%] rounded-2xl px-4 py-2.5 ${isUser ? 'bg-accent rounded-tl-none' : 'bg-gradient-to-br from-violet-600 to-blue-600 text-white rounded-tr-none'}`}>
-                      <p className="text-sm leading-relaxed">{msg.content}</p>
-                      <p className={`text-[10px] mt-1 ${isUser ? 'text-muted-foreground' : 'text-white/60'}`}>
-                        {new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
+
+                    <div className={`flex flex-col gap-1 max-w-[72%] ${isUser ? 'items-start' : 'items-end'}`}>
+                      {/* Sender label */}
+                      <span className="text-[10px] text-muted-foreground px-1">
+                        {isUser ? selected.contact.name.split(' ')[0] : `${selected.agentName ?? 'IA'} · Agente`}
+                      </span>
+
+                      <div className={`rounded-2xl px-4 py-2.5 shadow-sm ${
+                        isUser
+                          ? 'bg-accent rounded-tl-none'
+                          : 'text-white rounded-tr-none'
+                      }`}
+                        style={!isUser ? { background: `linear-gradient(135deg, ${agentColor}dd, ${agentColor}99)` } : undefined}
+                      >
+                        {/* Message text — suporta quebra de linha */}
+                        {msg.content.split('\n\n').map((para, pi) => (
+                          <p key={pi} className={`text-sm leading-relaxed ${pi > 0 ? 'mt-2' : ''}`}>
+                            {para}
+                          </p>
+                        ))}
+                        <p className={`text-[10px] mt-1.5 ${isUser ? 'text-muted-foreground' : 'text-white/50'}`}>
+                          {new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          {msg.status === 'read' && !isUser && ' · lida'}
+                        </p>
+                      </div>
                     </div>
+
                     {!isUser && (
-                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center shrink-0 mb-1">
-                        <Bot className="w-3.5 h-3.5 text-white" />
+                      <div
+                        className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mb-1 text-white text-xs font-bold shadow-md"
+                        style={{ background: agentColor }}
+                      >
+                        {(selected.agentName ?? 'IA')[0]}
                       </div>
                     )}
                   </motion.div>
@@ -222,25 +280,53 @@ export function Conversations() {
               })}
             </AnimatePresence>
 
-            {/* AI Typing */}
+            {/* AI Typing indicator */}
             <AnimatePresence>
               {isTyping && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
-                  className="flex items-end gap-2 justify-end">
-                  <div className="bg-gradient-to-br from-violet-600/50 to-blue-600/50 rounded-2xl rounded-tr-none px-4 py-3 flex items-center gap-1.5">
-                    <span className="text-xs text-white/70 mr-1">IA digitando</span>
-                    {[0, 1, 2].map(i => (
-                      <motion.span key={i} animate={{ y: [0, -4, 0] }} transition={{ repeat: Infinity, duration: 0.8, delay: i * 0.15 }}
-                        className="w-1.5 h-1.5 bg-white/70 rounded-full" />
-                    ))}
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 8 }}
+                  className="flex items-end gap-2.5 justify-end"
+                >
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-[10px] text-muted-foreground px-1">
+                      {selected.agentName ?? 'IA'} · digitando...
+                    </span>
+                    <div className="bg-gradient-to-br from-violet-600/60 to-blue-600/60 rounded-2xl rounded-tr-none px-5 py-3 flex items-center gap-1.5">
+                      {[0, 1, 2].map(i => (
+                        <motion.span
+                          key={i}
+                          animate={{ y: [0, -5, 0], opacity: [0.4, 1, 0.4] }}
+                          transition={{ repeat: Infinity, duration: 0.9, delay: i * 0.18, ease: 'easeInOut' }}
+                          className="w-2 h-2 bg-white/80 rounded-full"
+                        />
+                      ))}
+                    </div>
                   </div>
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center shrink-0">
-                    <Bot className="w-3.5 h-3.5 text-white" />
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center shrink-0 mb-6 text-white text-xs font-bold shadow-md">
+                    {(selected.agentName ?? 'IA')[0]}
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
+
             <div ref={messagesEndRef} />
+
+            {/* Scroll to bottom button */}
+            <AnimatePresence>
+              {showScrollDown && (
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  onClick={scrollToBottom}
+                  className="absolute bottom-4 right-4 w-9 h-9 bg-card border border-border rounded-full flex items-center justify-center shadow-lg hover:bg-accent transition-colors z-10"
+                >
+                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                </motion.button>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Input */}

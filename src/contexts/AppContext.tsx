@@ -3,10 +3,11 @@ import {
   type ReactNode
 } from 'react'
 import { storage, KEYS } from '@/services/storage'
+import { generateAIResponse, getTypingDelay } from '@/lib/aiEngine'
 import {
   mockAgents, mockConversations, mockLeads, mockKanbanColumns,
   mockNotifications, mockKnowledgeFiles, mockFlows,
-  defaultSettings, defaultProfile, aiResponses
+  defaultSettings, defaultProfile,
 } from '@/data/mock'
 import type {
   Agent, Conversation, Lead, KanbanColumn, AppNotification,
@@ -183,15 +184,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
       id: uid(), content, sender: 'user',
       timestamp: new Date().toISOString(), status: 'sent',
     }
+
+    // Snapshot da conversa antes de atualizar (para passar ao engine)
+    const conv = conversations.find(c => c.id === convId)
+    const history = conv ? [...conv.messages] : []
+    const contactName = conv?.contact.name ?? ''
+    const agentName = conv?.agentName
+
     setConversations(prev =>
       prev.map(c =>
         c.id !== convId ? c
           : { ...c, messages: [...c.messages, userMsg], lastMessage: content, lastMessageTime: new Date().toISOString(), unread: 0 }
       )
     )
-    const delay = 1500 + Math.random() * 2000
+
+    // Gera resposta contextual e calcula delay realista
+    const reply = generateAIResponse(content, agentName, contactName, [...history, userMsg])
+    const delay = getTypingDelay(reply)
+
     setTimeout(() => {
-      const reply = aiResponses[Math.floor(Math.random() * aiResponses.length)]
       const aiMsg: Message = { id: uid(), content: reply, sender: 'ai', timestamp: new Date().toISOString() }
       setConversations(prev =>
         prev.map(c =>
@@ -200,7 +211,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         )
       )
     }, delay)
-  }, [])
+  }, [conversations])
 
   const createConversation = useCallback((contact: { name: string; phone: string; company?: string }) => {
     const conv: Conversation = {
