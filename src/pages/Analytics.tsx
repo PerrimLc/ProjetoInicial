@@ -3,14 +3,14 @@ import { motion } from 'framer-motion'
 import { TrendingUp, TrendingDown, BarChart3, Clock, MessageSquare, Users, Download, RefreshCw } from 'lucide-react'
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis,
-  CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
+  CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useApp } from '@/contexts/AppContext'
 import { useToast } from '@/components/ui/toast'
-import { revenueChartData, conversionChartData, conversationChartData, agentUsageData } from '@/data/mock'
+import { revenueChartData, conversionChartData, conversationChartData } from '@/data/mock'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 
 const periods = ['Hoje', '7 dias', '30 dias', '90 dias', '12 meses']

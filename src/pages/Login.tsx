@@ -3,10 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Zap, Eye, EyeOff, ArrowRight, Loader2, User, Mail, Lock, Building } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useApp } from '@/contexts/AppContext'
+import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/ui/toast'
+import { useNavigate } from 'react-router-dom'
 
-type Mode = 'login' | 'register'
+type Mode = 'login' | 'register' | 'forgot'
 
 const stats = [
   { value: '3x', label: 'Mais conversões' },
@@ -22,15 +23,16 @@ const features = [
 ]
 
 export function Login() {
-  const { login, register } = useApp()
+  const { login, cadastrar, recuperarSenha } = useAuth()
   const { success, error } = useToast()
+  const navigate = useNavigate()
   const [mode, setMode] = useState<Mode>('login')
   const [loading, setLoading] = useState(false)
   const [showPass, setShowPass] = useState(false)
 
   // Login fields
-  const [loginEmail, setLoginEmail] = useState('demo@agentai.com.br')
-  const [loginPassword, setLoginPassword] = useState('demo1234')
+  const [loginEmail, setLoginEmail] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
 
   // Register fields
   const [regName, setRegName] = useState('')
@@ -39,24 +41,73 @@ export function Login() {
   const [regPassword, setRegPassword] = useState('')
   const [regConfirm, setRegConfirm] = useState('')
 
+  // Forgot password fields
+  const [forgotEmail, setForgotEmail] = useState('')
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!loginEmail || !loginPassword) { error('Preencha todos os campos'); return }
+    if (!loginEmail || !loginPassword) {
+      error('Preencha todos os campos')
+      return
+    }
     setLoading(true)
-    await new Promise(r => setTimeout(r, 1200))
-    login(loginEmail, loginPassword)
-    success('Bem-vindo de volta!', 'Redirecionando...')
+    try {
+      await login(loginEmail, loginPassword)
+      success('Bem-vindo de volta!', 'Redirecionando...')
+      navigate('/', { replace: true })
+    } catch (err) {
+      error('Erro ao entrar', (err as Error).message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!regName || !regEmail || !regPassword) { error('Preencha os campos obrigatórios'); return }
-    if (regPassword !== regConfirm) { error('As senhas não coincidem'); return }
-    if (regPassword.length < 6) { error('Senha muito curta', 'Mínimo 6 caracteres'); return }
+    if (!regName || !regEmail || !regPassword) {
+      error('Preencha os campos obrigatórios')
+      return
+    }
+    if (!regCompany.trim()) {
+      error('Informe o nome da empresa')
+      return
+    }
+    if (regPassword !== regConfirm) {
+      error('As senhas não coincidem')
+      return
+    }
+    if (regPassword.length < 6) {
+      error('Senha muito curta', 'Mínimo 6 caracteres')
+      return
+    }
     setLoading(true)
-    await new Promise(r => setTimeout(r, 1500))
-    register(regName, regEmail, regPassword)
-    success('Conta criada!', 'Bem-vindo à plataforma AgentAI.')
+    try {
+      await cadastrar(regName, regEmail, regCompany.trim(), regPassword)
+      success('Conta criada!', 'Bem-vindo à plataforma AgentAI.')
+      navigate('/', { replace: true })
+    } catch (err) {
+      error('Erro ao criar conta', (err as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!forgotEmail) {
+      error('Informe seu e-mail')
+      return
+    }
+    setLoading(true)
+    try {
+      await recuperarSenha(forgotEmail)
+      success('E-mail enviado!', 'Verifique sua caixa de entrada.')
+      setMode('login')
+    } catch (err) {
+      error('Erro ao enviar e-mail', (err as Error).message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -81,8 +132,11 @@ export function Login() {
           </p>
 
           <div className="grid grid-cols-3 gap-3 mb-8">
-            {stats.map(s => (
-              <div key={s.label} className="bg-card/60 border border-border rounded-xl p-4 text-center backdrop-blur-sm">
+            {stats.map((s) => (
+              <div
+                key={s.label}
+                className="bg-card/60 border border-border rounded-xl p-4 text-center backdrop-blur-sm"
+              >
                 <p className="text-2xl font-bold gradient-text">{s.value}</p>
                 <p className="text-xs text-muted-foreground mt-1">{s.label}</p>
               </div>
@@ -90,8 +144,10 @@ export function Login() {
           </div>
 
           <div className="space-y-2 text-left">
-            {features.map(f => (
-              <p key={f} className="text-sm text-muted-foreground">{f}</p>
+            {features.map((f) => (
+              <p key={f} className="text-sm text-muted-foreground">
+                {f}
+              </p>
             ))}
           </div>
         </motion.div>
@@ -108,23 +164,31 @@ export function Login() {
             <span className="font-bold text-lg gradient-text">AgentAI</span>
           </div>
 
-          {/* Tab switcher */}
-          <div className="flex items-center bg-accent/60 rounded-xl p-1 mb-6">
-            {(['login', 'register'] as Mode[]).map(m => (
-              <button
-                key={m}
-                onClick={() => { setMode(m); setLoading(false) }}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  mode === m ? 'bg-card shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {m === 'login' ? 'Entrar' : 'Criar Conta'}
-              </button>
-            ))}
-          </div>
+          {/* Tab switcher — only for login/register */}
+          {mode !== 'forgot' && (
+            <div className="flex items-center bg-accent/60 rounded-xl p-1 mb-6">
+              {(['login', 'register'] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => {
+                    setMode(m)
+                    setLoading(false)
+                  }}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    mode === m
+                      ? 'bg-card shadow text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {m === 'login' ? 'Entrar' : 'Criar Conta'}
+                </button>
+              ))}
+            </div>
+          )}
 
           <AnimatePresence mode="wait">
-            {mode === 'login' ? (
+            {/* ── Login form ── */}
+            {mode === 'login' && (
               <motion.form
                 key="login"
                 initial={{ opacity: 0, x: -16 }}
@@ -136,16 +200,23 @@ export function Login() {
               >
                 <div>
                   <h1 className="text-2xl font-bold mb-1">Bem-vindo de volta</h1>
-                  <p className="text-sm text-muted-foreground">Use qualquer e-mail e senha para acessar o demo.</p>
+                  <p className="text-sm text-muted-foreground">
+                    Entre com sua conta para continuar.
+                  </p>
                 </div>
 
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground block mb-1.5">E-mail</label>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1.5">
+                    E-mail
+                  </label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
-                      type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)}
-                      placeholder="seu@email.com" className="h-10 pl-9"
+                      type="email"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      placeholder="seu@email.com"
+                      className="h-10 pl-9"
                     />
                   </div>
                 </div>
@@ -153,16 +224,28 @@ export function Login() {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-medium text-muted-foreground">Senha</label>
-                    <button type="button" className="text-xs text-primary hover:underline">Esqueci a senha</button>
+                    <button
+                      type="button"
+                      onClick={() => setMode('forgot')}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      Esqueci a senha
+                    </button>
                   </div>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
-                      type={showPass ? 'text' : 'password'} value={loginPassword} onChange={e => setLoginPassword(e.target.value)}
-                      placeholder="••••••••" className="h-10 pl-9 pr-10"
+                      type={showPass ? 'text' : 'password'}
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="h-10 pl-9 pr-10"
                     />
-                    <button type="button" onClick={() => setShowPass(!showPass)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                    <button
+                      type="button"
+                      onClick={() => setShowPass(!showPass)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
                       {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
@@ -173,18 +256,38 @@ export function Login() {
                   Lembrar acesso por 30 dias
                 </label>
 
-                <Button type="submit" variant="gradient" className="w-full h-10 gap-2" disabled={loading}>
-                  {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Entrando...</> : <>Entrar <ArrowRight className="w-4 h-4" /></>}
+                <Button
+                  type="submit"
+                  variant="gradient"
+                  className="w-full h-10 gap-2"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Entrando...
+                    </>
+                  ) : (
+                    <>
+                      Entrar <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </Button>
 
                 <p className="text-center text-xs text-muted-foreground">
                   Não tem conta?{' '}
-                  <button type="button" onClick={() => setMode('register')} className="text-primary hover:underline">
+                  <button
+                    type="button"
+                    onClick={() => setMode('register')}
+                    className="text-primary hover:underline"
+                  >
                     Criar conta grátis
                   </button>
                 </p>
               </motion.form>
-            ) : (
+            )}
+
+            {/* ── Register form ── */}
+            {mode === 'register' && (
               <motion.form
                 key="register"
                 initial={{ opacity: 0, x: 16 }}
@@ -196,56 +299,93 @@ export function Login() {
               >
                 <div>
                   <h1 className="text-2xl font-bold mb-1">Criar sua conta</h1>
-                  <p className="text-sm text-muted-foreground">Comece gratuitamente, sem cartão de crédito.</p>
+                  <p className="text-sm text-muted-foreground">
+                    Comece gratuitamente, sem cartão de crédito.
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="sm:col-span-2">
-                    <label className="text-xs font-medium text-muted-foreground block mb-1.5">Nome completo *</label>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1.5">
+                      Nome completo *
+                    </label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input value={regName} onChange={e => setRegName(e.target.value)} placeholder="Seu nome" className="h-10 pl-9" />
+                      <Input
+                        value={regName}
+                        onChange={(e) => setRegName(e.target.value)}
+                        placeholder="Seu nome"
+                        className="h-10 pl-9"
+                      />
                     </div>
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label className="text-xs font-medium text-muted-foreground block mb-1.5">E-mail corporativo *</label>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1.5">
+                      E-mail corporativo *
+                    </label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input type="email" value={regEmail} onChange={e => setRegEmail(e.target.value)} placeholder="voce@empresa.com" className="h-10 pl-9" />
+                      <Input
+                        type="email"
+                        value={regEmail}
+                        onChange={(e) => setRegEmail(e.target.value)}
+                        placeholder="voce@empresa.com"
+                        className="h-10 pl-9"
+                      />
                     </div>
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label className="text-xs font-medium text-muted-foreground block mb-1.5">Empresa</label>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1.5">
+                      Nome da empresa *
+                    </label>
                     <div className="relative">
                       <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input value={regCompany} onChange={e => setRegCompany(e.target.value)} placeholder="Nome da empresa" className="h-10 pl-9" />
+                      <Input
+                        value={regCompany}
+                        onChange={(e) => setRegCompany(e.target.value)}
+                        placeholder="Nome da empresa"
+                        className="h-10 pl-9"
+                      />
                     </div>
                   </div>
 
                   <div>
-                    <label className="text-xs font-medium text-muted-foreground block mb-1.5">Senha *</label>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1.5">
+                      Senha *
+                    </label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
-                        type={showPass ? 'text' : 'password'} value={regPassword} onChange={e => setRegPassword(e.target.value)}
-                        placeholder="Min. 6 caracteres" className="h-10 pl-9 pr-10"
+                        type={showPass ? 'text' : 'password'}
+                        value={regPassword}
+                        onChange={(e) => setRegPassword(e.target.value)}
+                        placeholder="Min. 6 caracteres"
+                        className="h-10 pl-9 pr-10"
                       />
-                      <button type="button" onClick={() => setShowPass(!showPass)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                      <button
+                        type="button"
+                        onClick={() => setShowPass(!showPass)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                      >
                         {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
 
                   <div>
-                    <label className="text-xs font-medium text-muted-foreground block mb-1.5">Confirmar senha *</label>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1.5">
+                      Confirmar senha *
+                    </label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
-                        type={showPass ? 'text' : 'password'} value={regConfirm} onChange={e => setRegConfirm(e.target.value)}
-                        placeholder="Repita a senha" className="h-10 pl-9"
+                        type={showPass ? 'text' : 'password'}
+                        value={regConfirm}
+                        onChange={(e) => setRegConfirm(e.target.value)}
+                        placeholder="Repita a senha"
+                        className="h-10 pl-9"
                       />
                     </div>
                   </div>
@@ -253,18 +393,106 @@ export function Login() {
 
                 <p className="text-xs text-muted-foreground">
                   Ao criar uma conta você concorda com os{' '}
-                  <button type="button" className="text-primary hover:underline">Termos de Uso</button>{' '}e a{' '}
-                  <button type="button" className="text-primary hover:underline">Política de Privacidade</button>.
+                  <button type="button" className="text-primary hover:underline">
+                    Termos de Uso
+                  </button>{' '}
+                  e a{' '}
+                  <button type="button" className="text-primary hover:underline">
+                    Política de Privacidade
+                  </button>
+                  .
                 </p>
 
-                <Button type="submit" variant="gradient" className="w-full h-10 gap-2" disabled={loading}>
-                  {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Criando conta...</> : <>Criar conta grátis <ArrowRight className="w-4 h-4" /></>}
+                <Button
+                  type="submit"
+                  variant="gradient"
+                  className="w-full h-10 gap-2"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Criando conta...
+                    </>
+                  ) : (
+                    <>
+                      Criar conta grátis <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </Button>
 
                 <p className="text-center text-xs text-muted-foreground">
                   Já tem conta?{' '}
-                  <button type="button" onClick={() => setMode('login')} className="text-primary hover:underline">
+                  <button
+                    type="button"
+                    onClick={() => setMode('login')}
+                    className="text-primary hover:underline"
+                  >
                     Entrar agora
+                  </button>
+                </p>
+              </motion.form>
+            )}
+
+            {/* ── Forgot password form ── */}
+            {mode === 'forgot' && (
+              <motion.form
+                key="forgot"
+                initial={{ opacity: 0, x: 16 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -16 }}
+                transition={{ duration: 0.2 }}
+                onSubmit={handleForgotPassword}
+                className="space-y-4"
+              >
+                <div>
+                  <h1 className="text-2xl font-bold mb-1">Recuperar senha</h1>
+                  <p className="text-sm text-muted-foreground">
+                    Enviaremos um link de redefinição para seu e-mail.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1.5">
+                    E-mail
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      type="email"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      placeholder="seu@email.com"
+                      className="h-10 pl-9"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  variant="gradient"
+                  className="w-full h-10 gap-2"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Enviando...
+                    </>
+                  ) : (
+                    <>
+                      Enviar link <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </Button>
+
+                <p className="text-center text-xs text-muted-foreground">
+                  Lembrou a senha?{' '}
+                  <button
+                    type="button"
+                    onClick={() => setMode('login')}
+                    className="text-primary hover:underline"
+                  >
+                    Voltar ao login
                   </button>
                 </p>
               </motion.form>

@@ -1,0 +1,124 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Usuarios ─────────────────────────────────────────────────────────────
+    // Cada usuario le e escreve apenas seu proprio documento.
+    match /usuarios/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ── Empresas ──────────────────────────────────────────────────────────────
+    match /empresas/{empresaId} {
+
+      // Helpers de verificacao de membro e papel
+      function membroDoc() {
+        return get(/databases/$(database)/documents/empresas/$(empresaId)/membros/$(request.auth.uid));
+      }
+
+      function isMembro() {
+        return request.auth != null
+          && exists(/databases/$(database)/documents/empresas/$(empresaId)/membros/$(request.auth.uid))
+          && membroDoc().data.ativo == true;
+      }
+
+      function getPapel() {
+        return membroDoc().data.papel;
+      }
+
+      function isAdmin() {
+        return isMembro() && getPapel() == 'administrador';
+      }
+
+      function isSupervisorOuAdmin() {
+        return isMembro() && getPapel() in ['administrador', 'supervisor'];
+      }
+
+      // Documento da empresa: membros ativos leem; so admin escreve
+      allow read: if request.auth != null && isMembro();
+      allow create: if request.auth != null;        // criacao durante onboarding
+      allow update, delete: if request.auth != null && isAdmin();
+
+      // ── Membros ────────────────────────────────────────────────────────────
+      // Membros ativos listam/leem; so admin cria, atualiza ou remove.
+      match /membros/{membroId} {
+        allow read: if request.auth != null && isMembro();
+        allow write: if request.auth != null && isAdmin();
+      }
+
+      // ── Configuracoes ─────────────────────────────────────────────────────
+      // Membros ativos leem; so admin escreve.
+      match /configuracoes/{docId} {
+        allow read: if request.auth != null && isMembro();
+        allow write: if request.auth != null && isAdmin();
+      }
+
+      // ── Setores ───────────────────────────────────────────────────────────
+      // Membros ativos leem; so admin escreve.
+      match /setores/{setorId} {
+        allow read: if request.auth != null && isMembro();
+        allow write: if request.auth != null && isAdmin();
+      }
+
+      // ── Etiquetas ─────────────────────────────────────────────────────────
+      // Membros ativos leem; admin e supervisor escrevem (criar, editar, excluir).
+      match /etiquetas/{etiquetaId} {
+        allow read: if request.auth != null && isMembro();
+        allow write: if request.auth != null && isSupervisorOuAdmin();
+      }
+
+      // ── Contatos ──────────────────────────────────────────────────────────
+      // Todos os membros ativos leem e escrevem (requisito 3.6: atendentes
+      // podem cadastrar e editar contatos).
+      match /contatos/{contatoId} {
+        allow read, write: if request.auth != null && isMembro();
+      }
+
+      // ── Etapas do Funil ───────────────────────────────────────────────────
+      // Membros ativos leem; so admin escreve (requisito 3.4).
+      match /etapasFunil/{etapaId} {
+        allow read: if request.auth != null && isMembro();
+        allow write: if request.auth != null && isAdmin();
+      }
+
+      // ── Negocios ──────────────────────────────────────────────────────────
+      // Todos os membros ativos leem e escrevem (requisito 3.6: atendentes
+      // podem cadastrar e editar negocios).
+      match /negocios/{negocioId} {
+        allow read, write: if request.auth != null && isMembro();
+      }
+
+      // ── Conversas e Mensagens ─────────────────────────────────────────────
+      // Todos os membros ativos leem e escrevem conversas.
+      // Atendentes so interagem com conversas do seu setor ou atribuidas a eles;
+      // a regra de negocio e aplicada no frontend.
+      // Regra Firestore: membro ativo tem acesso.
+      match /conversas/{conversaId} {
+        allow read, write: if request.auth != null && isMembro();
+
+        match /mensagens/{mensagemId} {
+          allow read, write: if request.auth != null && isMembro();
+        }
+      }
+
+      // ── Respostas Rapidas ─────────────────────────────────────────────────
+      // Membros ativos leem; admin e supervisor gerenciam.
+      match /respostasRapidas/{respostaId} {
+        allow read: if request.auth != null && isMembro();
+        allow write: if request.auth != null && isSupervisorOuAdmin();
+      }
+
+      // ── Metricas ──────────────────────────────────────────────────────────
+      // Membros ativos leem e escrevem (necessario para incrementar contadores
+      // no frontend sem Cloud Functions).
+      match /metricas/{docId} {
+        allow read, write: if request.auth != null && isMembro();
+      }
+
+      // ── Agendamentos ──────────────────────────────────────────────────────
+      match /agendamentos/{agendamentoId} {
+        allow read, write: if request.auth != null && isMembro();
+      }
+    }
+  }
+}
