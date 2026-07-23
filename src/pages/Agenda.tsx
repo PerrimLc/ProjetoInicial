@@ -185,6 +185,7 @@ export function Agenda() {
                     {events.filter(e => e.day === dayIdx).map((ev) => {
                       const topOffset = (parseInt(ev.time.split(':')[0]) - 8) * 64 + (parseInt(ev.time.split(':')[1]) / 60) * 64
                       const height = (ev.duration / 60) * 64
+                      const Icon = typeIcons[ev.type]
                       return (
                         <motion.div
                           key={ev.id}
