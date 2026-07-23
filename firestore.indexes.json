@@ -1,0 +1,110 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "contatos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "nome", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "contatos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "criadoEm", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "negocios",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "etapaId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "negocios",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "criadoEm", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "negocios",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "criadoEm", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "negocios",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "responsavelId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "conversas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ultimaMensagemEm", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "conversas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "ultimaMensagemEm", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "conversas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "atendenteId", "order": "ASCENDING" },
+        { "fieldPath": "ultimaMensagemEm", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "conversas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "setorId", "order": "ASCENDING" },
+        { "fieldPath": "ultimaMensagemEm", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mensagens",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "enviadaEm", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "etapasFunil",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ordem", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "agendamentos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "data", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "agendamentos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "contatoId", "order": "ASCENDING" },
+        { "fieldPath": "data", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

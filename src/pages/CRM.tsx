@@ -1,301 +1,434 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, MoreHorizontal, DollarSign, Calendar, Edit2, Trash2, GripVertical } from 'lucide-react'
+import { Plus, Search, LayoutGrid, Archive, RotateCcw, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Modal, ConfirmModal } from '@/components/ui/modal'
-import { useApp } from '@/contexts/AppContext'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { NegocioCard } from '@/features/crm/NegocioCard'
+import { NegocioForm, type NegocioFormData } from '@/features/crm/NegocioForm'
+import { useEtapasFunil } from '@/hooks/useEtapasFunil'
+import { useNegocios } from '@/hooks/useNegocios'
+import { useContatos } from '@/hooks/useContatos'
 import { useToast } from '@/components/ui/toast'
 import { formatCurrency } from '@/lib/utils'
-import type { KanbanCard } from '@/types'
+import type { Negocio } from '@/types'
 
-const priorityColors = { low: 'bg-zinc-500', medium: 'bg-amber-500', high: 'bg-red-500' }
-const priorityLabel = { low: 'Baixa', medium: 'Média', high: 'Alta' }
-
-const emptyCardForm = (): Omit<KanbanCard, 'id' | 'daysInStage'> => ({
-  title: '', company: '', value: 0, responsible: 'AL', priority: 'medium', email: '', phone: '',
-})
+type Aba = 'kanban' | 'arquivo'
 
 export function CRM() {
-  const { kanbanColumns, moveCard, addKanbanCard, updateKanbanCard, deleteKanbanCard, addNotification } = useApp()
-  const { success } = useToast()
+  const { success, error: toastError } = useToast()
+  const { etapas, carregando: carregandoEtapas } = useEtapasFunil()
+  const {
+    negocios,
+    carregando: carregandoNegocios,
+    criarNegocio,
+    atualizarNegocio,
+    moverNegocio,
+    marcarGanho,
+    marcarPerdido,
+    arquivarNegocio,
+    excluirNegocio,
+  } = useNegocios()
+  const { contatos } = useContatos()
 
-  const [dragging, setDragging] = useState<{ cardId: string; fromColId: string } | null>(null)
-  const [dragOverCol, setDragOverCol] = useState<string | null>(null)
-  const [showAddModal, setShowAddModal] = useState<string | null>(null) // colId
-  const [editCard, setEditCard] = useState<{ card: KanbanCard; colId: string } | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<{ cardId: string; colId: string } | null>(null)
-  const [cardForm, setCardForm] = useState(emptyCardForm())
-  const [openMenu, setOpenMenu] = useState<string | null>(null)
-  const dragCardRef = useRef<string | null>(null)
+  const [aba, setAba] = useState<Aba>('kanban')
+  const [busca, setBusca] = useState('')
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [dragOverEtapaId, setDragOverEtapaId] = useState<string | null>(null)
+  const [showModal, setShowModal] = useState(false)
+  const [editando, setEditando] = useState<Negocio | null>(null)
+  const [etapaIdModal, setEtapaIdModal] = useState<string>('')
+  const [salvando, setSalvando] = useState(false)
+  const [restaurandoId, setRestandoId] = useState<string | null>(null)
 
-  const totalPipeline = kanbanColumns.flatMap(c => c.cards).reduce((s, c) => s + c.value, 0)
-  const totalCards = kanbanColumns.flatMap(c => c.cards).length
+  // ── Filtros ───────────────────────────────────────────────
+  const negociosKanban = negocios.filter((n) => {
+    if (n.status !== 'aberto') return false
+    if (!busca) return true
+    const q = busca.toLowerCase()
+    return n.titulo.toLowerCase().includes(q) || n.contatoNome.toLowerCase().includes(q)
+  })
 
-  // ─── Drag handlers ───────────────────────────────────────
-  const handleDragStart = (e: React.DragEvent, cardId: string, fromColId: string) => {
-    dragCardRef.current = cardId
-    setDragging({ cardId, fromColId })
+  const negociosArquivo = negocios.filter((n) => {
+    if (n.status === 'aberto') return false
+    if (!busca) return true
+    const q = busca.toLowerCase()
+    return n.titulo.toLowerCase().includes(q) || n.contatoNome.toLowerCase().includes(q)
+  })
+
+  const negociosPorEtapa = (etapaId: string) =>
+    negociosKanban.filter((n) => n.etapaId === etapaId)
+
+  const totalPipeline = negociosKanban.reduce((s, n) => s + (n.valor ?? 0), 0)
+
+  // ── Drag & Drop ───────────────────────────────────────────
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDraggingId(id)
     e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', cardId)
+    e.dataTransfer.setData('text/plain', id)
   }
 
   const handleDragEnd = () => {
-    setDragging(null)
-    setDragOverCol(null)
-    dragCardRef.current = null
+    setDraggingId(null)
+    setDragOverEtapaId(null)
   }
 
-  const handleDragOver = (e: React.DragEvent, colId: string) => {
+  const handleDragOver = (e: React.DragEvent, etapaId: string) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
-    setDragOverCol(colId)
+    setDragOverEtapaId(etapaId)
   }
 
-  const handleDrop = (e: React.DragEvent, toColId: string) => {
+  const handleDrop = async (e: React.DragEvent, toEtapaId: string) => {
     e.preventDefault()
-    if (!dragging) return
-    if (dragging.fromColId !== toColId) {
-      moveCard(dragging.cardId, dragging.fromColId, toColId)
-      const toCol = kanbanColumns.find(c => c.id === toColId)
-      addNotification({ title: 'Card movido', message: `Oportunidade movida para ${toCol?.title ?? toColId}.`, type: 'info' })
+    if (!draggingId) return
+    const negocio = negocios.find((n) => n.id === draggingId)
+    if (negocio && negocio.etapaId !== toEtapaId) {
+      try {
+        await moverNegocio(draggingId, toEtapaId)
+        success('Negócio movido!')
+      } catch {
+        toastError('Erro ao mover negócio')
+      }
     }
-    setDragging(null)
-    setDragOverCol(null)
+    setDraggingId(null)
+    setDragOverEtapaId(null)
   }
 
-  const openAdd = (colId: string) => {
-    setCardForm(emptyCardForm())
-    setShowAddModal(colId)
-  }
-
-  const openEdit = (card: KanbanCard, colId: string) => {
-    setEditCard({ card, colId })
-    setCardForm({ title: card.title, company: card.company, value: card.value, responsible: card.responsible, priority: card.priority, email: card.email ?? '', phone: card.phone ?? '' })
-    setOpenMenu(null)
-  }
-
-  const handleSaveCard = () => {
-    if (!cardForm.title) return
-    if (editCard) {
-      updateKanbanCard(editCard.card.id, editCard.colId, cardForm)
-      success('Oportunidade atualizada!')
-      setEditCard(null)
-    } else if (showAddModal) {
-      addKanbanCard(showAddModal, cardForm)
-      setShowAddModal(null)
+  // ── CRUD ──────────────────────────────────────────────────
+  const handleSalvar = async (dados: NegocioFormData) => {
+    setSalvando(true)
+    try {
+      const contato = contatos.find((c) => c.id === dados.contatoId)
+      if (editando) {
+        await atualizarNegocio(editando.id, { ...dados, contatoNome: contato?.nome ?? '' })
+        success('Negócio atualizado!')
+      } else {
+        await criarNegocio({
+          ...dados,
+          contatoNome: contato?.nome ?? '',
+          status: 'aberto',
+          valor: dados.valor ?? 0,
+        })
+        success('Negócio criado!')
+      }
+      setShowModal(false)
+      setEditando(null)
+    } catch (e) {
+      toastError('Erro ao salvar', (e as Error).message)
+    } finally {
+      setSalvando(false)
     }
+  }
+
+  const openAdicionar = (etapaId: string) => {
+    setEditando(null)
+    setEtapaIdModal(etapaId)
+    setShowModal(true)
+  }
+
+  const openEditar = (negocio: Negocio) => {
+    setEditando(negocio)
+    setEtapaIdModal(negocio.etapaId)
+    setShowModal(true)
+  }
+
+  const handleGanho = async (id: string) => {
+    try { await marcarGanho(id); success('Negócio ganho!') }
+    catch { toastError('Erro ao marcar como ganho') }
+  }
+
+  const handlePerdido = async (id: string) => {
+    try { await marcarPerdido(id); success('Negócio marcado como perdido.') }
+    catch { toastError('Erro ao marcar como perdido') }
+  }
+
+  const handleArquivar = async (id: string) => {
+    try { await arquivarNegocio(id); success('Negócio arquivado.') }
+    catch { toastError('Erro ao arquivar') }
+  }
+
+  const handleExcluir = async (id: string) => {
+    try { await excluirNegocio(id); success('Negócio excluído.') }
+    catch { toastError('Erro ao excluir') }
+  }
+
+  const handleRestaurar = async (id: string) => {
+    try {
+      await atualizarNegocio(id, { status: 'aberto' })
+      success('Negócio restaurado para o Kanban!')
+      setRestandoId(null)
+    } catch { toastError('Erro ao restaurar') }
+  }
+
+  const carregando = carregandoEtapas || carregandoNegocios
+
+  // ── Status label/badge ────────────────────────────────────
+  const statusInfo = (status: string) => {
+    if (status === 'ganho') return { label: 'Ganho', variant: 'success' as const }
+    if (status === 'perdido') return { label: 'Perdido', variant: 'destructive' as const }
+    return { label: 'Arquivado', variant: 'secondary' as const }
   }
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col h-[calc(100vh-64px)]">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-border flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3 flex-wrap">
+      <div className="px-4 sm:px-6 py-4 border-b border-border flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3 overflow-x-auto pb-1 flex-nowrap sm:flex-wrap">
           {[
             { label: 'Pipeline Total', value: formatCurrency(totalPipeline), color: 'text-emerald-400' },
-            { label: 'Oportunidades', value: totalCards, color: 'text-foreground' },
-            { label: 'Colunas', value: kanbanColumns.length, color: 'text-violet-400' },
-          ].map(s => (
+            { label: 'Abertos', value: negociosKanban.length, color: 'text-foreground' },
+            { label: 'Ganhos', value: negocios.filter((n) => n.status === 'ganho').length, color: 'text-violet-400' },
+            { label: 'Arquivados', value: negociosArquivo.length, color: 'text-blue-400' },
+          ].map((s) => (
             <div key={s.label} className="bg-card border border-border rounded-xl px-4 py-2">
               <p className="text-[10px] text-muted-foreground">{s.label}</p>
               <p className={`text-lg font-bold ${s.color}`}>{s.value}</p>
             </div>
           ))}
         </div>
-        <Button variant="gradient" size="sm" className="gap-1.5" onClick={() => openAdd(kanbanColumns[0]?.id ?? '')}>
-          <Plus className="w-4 h-4" /> Nova Oportunidade
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <Input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar negócio..."
+              className="pl-8 h-8 text-xs w-48"
+            />
+          </div>
+          {aba === 'kanban' && (
+            <Button variant="gradient" size="sm" className="gap-1.5" onClick={() => openAdicionar(etapas[0]?.id ?? '')}>
+              <Plus className="w-4 h-4" /> Novo Negócio
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* Kanban board */}
-      <div className="flex-1 overflow-x-auto p-6">
-        <div className="flex gap-4 h-full" style={{ minWidth: `${kanbanColumns.length * 272}px` }}>
-          {kanbanColumns.map((column, colIdx) => {
-            const colTotal = column.cards.reduce((s, c) => s + c.value, 0)
-            const isOver = dragOverCol === column.id
+      {/* Abas */}
+      <div className="flex items-center gap-1 px-6 pt-4 pb-0 border-b border-border">
+        {([
+          { id: 'kanban', label: 'Kanban', icon: LayoutGrid },
+          { id: 'arquivo', label: `Arquivo (${negociosArquivo.length})`, icon: Archive },
+        ] as const).map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setAba(id)}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              aba === id
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Icon className="w-3.5 h-3.5" />
+            {label}
+          </button>
+        ))}
+      </div>
 
-            return (
-              <motion.div
-                key={column.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: colIdx * 0.06 }}
-                className="w-64 flex flex-col shrink-0"
-                onDragOver={(e) => handleDragOver(e, column.id)}
-                onDrop={(e) => handleDrop(e, column.id)}
-              >
-                {/* Column header */}
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: column.color }} />
-                    <span className="text-sm font-semibold">{column.title}</span>
-                    <span className="w-5 h-5 rounded-full bg-accent text-xs flex items-center justify-center font-bold">
-                      {column.cards.length}
-                    </span>
-                  </div>
-                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openAdd(column.id)}>
-                    <Plus className="w-3.5 h-3.5" />
-                  </Button>
+      {/* Conteúdo */}
+      <div className="flex-1 overflow-auto">
+        <AnimatePresence mode="wait">
+          {aba === 'kanban' ? (
+            <motion.div
+              key="kanban"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="p-6 h-full"
+            >
+              {carregando ? (
+                <div className="flex gap-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="w-64 shrink-0 space-y-3">
+                      <Skeleton className="h-6 w-32" />
+                      <Skeleton className="h-24 w-full rounded-xl" />
+                      <Skeleton className="h-24 w-full rounded-xl" />
+                    </div>
+                  ))}
                 </div>
-                <p className="text-xs text-muted-foreground mb-3">{formatCurrency(colTotal)}</p>
-
-                {/* Drop zone */}
-                <motion.div
-                  animate={{ borderColor: isOver ? column.color + '80' : 'transparent', backgroundColor: isOver ? column.color + '08' : 'transparent' }}
-                  transition={{ duration: 0.15 }}
-                  className="flex-1 space-y-2.5 overflow-y-auto rounded-xl border-2 border-dashed border-transparent transition-colors min-h-[120px] pb-2"
+              ) : (
+                <div
+                  className="flex gap-4 h-full"
+                  style={{ minWidth: `${etapas.filter((e) => e.ativo).length * 272}px` }}
                 >
-                  <AnimatePresence>
-                    {column.cards.map((card, cardIdx) => (
+                  {etapas.filter((e) => e.ativo).map((etapa, idx) => {
+                    const itens = negociosPorEtapa(etapa.id)
+                    const total = itens.reduce((s, n) => s + (n.valor ?? 0), 0)
+                    const isOver = dragOverEtapaId === etapa.id
+
+                    return (
                       <motion.div
-                        key={card.id}
-                        layout
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: dragging?.cardId === card.id ? 0.4 : 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        transition={{ delay: cardIdx * 0.03 }}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e as any, card.id, column.id)}
-                        onDragEnd={handleDragEnd}
-                        whileHover={{ y: -2 }}
-                        className="bg-card border border-border rounded-xl p-3 cursor-grab active:cursor-grabbing hover:border-border/60 hover:shadow-lg hover:shadow-black/20 transition-all duration-200 group select-none"
+                        key={etapa.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.05 }}
+                        className="w-64 flex flex-col shrink-0"
+                        onDragOver={(e) => handleDragOver(e, etapa.id)}
+                        onDrop={(e) => handleDrop(e, etapa.id)}
                       >
-                        {/* Priority + drag + menu */}
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-1.5">
-                            <GripVertical className="w-3.5 h-3.5 text-muted-foreground/40" />
-                            <span className={`w-1.5 h-1.5 rounded-full ${priorityColors[card.priority]}`} />
-                            <span className="text-[10px] text-muted-foreground">{priorityLabel[card.priority]}</span>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-gradient-to-br from-violet-500 to-blue-500" />
+                            <span className="text-sm font-semibold truncate">{etapa.nome}</span>
+                            <span className="w-5 h-5 rounded-full bg-accent text-xs flex items-center justify-center font-bold">
+                              {itens.length}
+                            </span>
                           </div>
-                          <div className="relative">
-                            <Button
-                              variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={() => setOpenMenu(openMenu === card.id ? null : card.id)}
-                            >
-                              <MoreHorizontal className="w-3 h-3" />
-                            </Button>
-                            <AnimatePresence>
-                              {openMenu === card.id && (
-                                <>
-                                  <div className="fixed inset-0 z-10" onClick={() => setOpenMenu(null)} />
-                                  <motion.div
-                                    initial={{ opacity: 0, scale: 0.9, y: -4 }}
-                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.9 }}
-                                    className="absolute right-0 top-6 z-20 bg-card border border-border rounded-lg shadow-xl w-32 overflow-hidden"
-                                  >
-                                    <button onClick={() => openEdit(card, column.id)} className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-accent transition-colors">
-                                      <Edit2 className="w-3 h-3" /> Editar
-                                    </button>
-                                    <button
-                                      onClick={() => { setDeleteTarget({ cardId: card.id, colId: column.id }); setOpenMenu(null) }}
-                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-red-500/10 text-red-400 transition-colors"
-                                    >
-                                      <Trash2 className="w-3 h-3" /> Excluir
-                                    </button>
-                                  </motion.div>
-                                </>
-                              )}
-                            </AnimatePresence>
-                          </div>
+                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openAdicionar(etapa.id)}>
+                            <Plus className="w-3.5 h-3.5" />
+                          </Button>
                         </div>
+                        <p className="text-xs text-muted-foreground mb-3">{formatCurrency(total)}</p>
 
-                        <p className="text-sm font-semibold mb-0.5 truncate">{card.title}</p>
-                        <p className="text-xs text-muted-foreground mb-3 truncate">{card.company}</p>
-
-                        <div className="flex items-center gap-1.5 mb-3">
-                          <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-                          <span className="text-sm font-bold text-emerald-400">{formatCurrency(card.value)}</span>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-500/40 to-blue-500/40 flex items-center justify-center text-[9px] font-bold">
-                            {card.responsible}
-                          </div>
-                          <div className="flex items-center gap-1 text-muted-foreground">
-                            <Calendar className="w-3 h-3" />
-                            <span className="text-[10px]">{card.daysInStage}d</span>
-                          </div>
+                        <div
+                          className={`flex-1 space-y-2.5 overflow-y-auto rounded-xl border-2 border-dashed transition-all min-h-[120px] pb-2 ${
+                            isOver ? 'border-violet-500/50 bg-violet-500/5' : 'border-transparent'
+                          }`}
+                        >
+                          {itens.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-8 text-center">
+                              <p className="text-xs text-muted-foreground">Sem negócios</p>
+                              <button
+                                onClick={() => openAdicionar(etapa.id)}
+                                className="mt-2 text-xs text-primary hover:underline"
+                              >
+                                + Adicionar
+                              </button>
+                            </div>
+                          ) : (
+                            itens.map((negocio) => (
+                              <NegocioCard
+                                key={negocio.id}
+                                negocio={negocio}
+                                onEditar={openEditar}
+                                onGanho={handleGanho}
+                                onPerdido={handlePerdido}
+                                onArquivar={handleArquivar}
+                                onExcluir={handleExcluir}
+                                onDragStart={handleDragStart}
+                                onDragEnd={handleDragEnd}
+                                isDragging={draggingId === negocio.id}
+                              />
+                            ))
+                          )}
                         </div>
                       </motion.div>
-                    ))}
-                  </AnimatePresence>
+                    )
+                  })}
+                </div>
+              )}
+            </motion.div>
+          ) : (
+            /* ── Aba Arquivo ── */
+            <motion.div
+              key="arquivo"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="p-6"
+            >
+              {carregando ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
+                </div>
+              ) : negociosArquivo.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+                    <Archive className="w-7 h-7 text-primary" />
+                  </div>
+                  <p className="text-sm font-semibold mb-1">Arquivo vazio</p>
+                  <p className="text-xs text-muted-foreground max-w-xs">
+                    Negócios arquivados, ganhos e perdidos aparecem aqui.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {negociosArquivo.map((n, i) => {
+                    const info = statusInfo(n.status)
+                    return (
+                      <motion.div
+                        key={n.id}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.03 }}
+                        className="flex items-center gap-4 bg-card border border-border rounded-xl px-5 py-3 hover:bg-accent/20 transition-colors"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-medium truncate">{n.titulo}</p>
+                            <Badge variant={info.variant} className="text-[10px] px-1.5 py-0">
+                              {info.label}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{n.contatoNome}</p>
+                        </div>
 
-                  {/* Add placeholder */}
-                  <button
-                    onClick={() => openAdd(column.id)}
-                    className="w-full py-2 border border-dashed border-border/50 rounded-xl text-xs text-muted-foreground hover:border-primary/40 hover:text-primary/70 transition-colors flex items-center justify-center gap-1"
-                  >
-                    <Plus className="w-3 h-3" /> Adicionar
-                  </button>
-                </motion.div>
-              </motion.div>
-            )
-          })}
-        </div>
+                        {(n.valor ?? 0) > 0 && (
+                          <p className="text-sm font-semibold text-emerald-400 shrink-0">
+                            {formatCurrency(n.valor ?? 0)}
+                          </p>
+                        )}
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          {/* Restaurar para o Kanban */}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 hover:bg-violet-500/10 hover:text-violet-400"
+                            title="Restaurar para o Kanban"
+                            onClick={() => setRestandoId(n.id)}
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          </Button>
+                          {/* Excluir permanente */}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 hover:bg-red-500/10 hover:text-red-400"
+                            title="Excluir permanentemente"
+                            onClick={() => handleExcluir(n.id)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </motion.div>
+                    )
+                  })}
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* Add / Edit Modal */}
+      {/* Modal cadastro/edição */}
       <Modal
-        open={!!showAddModal || !!editCard}
-        onClose={() => { setShowAddModal(null); setEditCard(null) }}
-        title={editCard ? 'Editar Oportunidade' : 'Nova Oportunidade'}
+        open={showModal}
+        onClose={() => { setShowModal(false); setEditando(null) }}
+        title={editando ? 'Editar Negócio' : 'Novo Negócio'}
         size="md"
       >
-        <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
-            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Nome do contato *</label>
-            <Input value={cardForm.title} onChange={e => setCardForm(p => ({ ...p, title: e.target.value }))} placeholder="Nome completo" className="h-9 text-sm" />
-          </div>
-          <div className="col-span-2">
-            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Empresa</label>
-            <Input value={cardForm.company} onChange={e => setCardForm(p => ({ ...p, company: e.target.value }))} placeholder="Nome da empresa" className="h-9 text-sm" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Valor (R$)</label>
-            <Input type="number" value={cardForm.value} onChange={e => setCardForm(p => ({ ...p, value: Number(e.target.value) }))} placeholder="50000" className="h-9 text-sm" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Responsável</label>
-            <select value={cardForm.responsible} onChange={e => setCardForm(p => ({ ...p, responsible: e.target.value }))}
-              className="w-full h-9 text-sm bg-transparent border border-border rounded-lg px-3 text-foreground focus:outline-none focus:ring-1 focus:ring-ring">
-              {['AL', 'CR', 'PM', 'JS'].map(r => <option key={r} value={r}>{r}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1.5">E-mail</label>
-            <Input value={cardForm.email ?? ''} onChange={e => setCardForm(p => ({ ...p, email: e.target.value }))} placeholder="email@empresa.com" className="h-9 text-sm" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Prioridade</label>
-            <select value={cardForm.priority} onChange={e => setCardForm(p => ({ ...p, priority: e.target.value as any }))}
-              className="w-full h-9 text-sm bg-transparent border border-border rounded-lg px-3 text-foreground focus:outline-none focus:ring-1 focus:ring-ring">
-              <option value="low">Baixa</option>
-              <option value="medium">Média</option>
-              <option value="high">Alta</option>
-            </select>
-          </div>
-        </div>
-        <div className="flex gap-2 justify-end mt-5">
-          <Button variant="outline" size="sm" onClick={() => { setShowAddModal(null); setEditCard(null) }}>Cancelar</Button>
-          <Button variant="gradient" size="sm" onClick={handleSaveCard} disabled={!cardForm.title}>
-            {editCard ? 'Salvar' : 'Adicionar'}
-          </Button>
-        </div>
+        <NegocioForm
+          negocio={editando ?? undefined}
+          etapas={etapas}
+          etapaIdInicial={etapaIdModal}
+          onSalvar={handleSalvar}
+          onCancelar={() => { setShowModal(false); setEditando(null) }}
+          salvando={salvando}
+        />
       </Modal>
 
-      {/* Delete confirm */}
+      {/* Confirmar restaurar */}
       <ConfirmModal
-        open={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={() => {
-          if (deleteTarget) { deleteKanbanCard(deleteTarget.cardId, deleteTarget.colId); setDeleteTarget(null) }
-        }}
-        title="Excluir oportunidade"
-        message="Tem certeza? Esta ação não pode ser desfeita."
-        confirmLabel="Excluir"
-        danger
+        open={!!restaurandoId}
+        onClose={() => setRestandoId(null)}
+        onConfirm={() => restaurandoId && handleRestaurar(restaurandoId)}
+        title="Restaurar Negócio"
+        message="O negócio voltará para o Kanban como 'Aberto'. Deseja continuar?"
+        confirmLabel="Restaurar"
       />
     </motion.div>
   )
