@@ -1,0 +1,14 @@
+import { Zap } from 'lucide-react'
+
+export function LoadingPage() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-600 to-blue-500 flex items-center justify-center animate-pulse">
+          <Zap className="w-6 h-6 text-white" />
+        </div>
+        <p className="text-sm text-muted-foreground">Carregando...</p>
+      </div>
+    </div>
+  )
+}
