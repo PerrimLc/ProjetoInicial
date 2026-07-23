@@ -647,14 +647,14 @@ service cloud.firestore {
 
 ## Environment Variables
 
-### .env (já configurado pelo usuário)
+### .env (já configurado pelo usuário — valores reais ficam apenas no .env local, nunca no repositório)
 ```
-VITE_FIREBASE_API_KEY=AIzaSyCI5gg5wN85vKy2vH3l8GdoBmYEvawBqyk
-VITE_FIREBASE_AUTH_DOMAIN=beta-agenteia.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=beta-agenteia
-VITE_FIREBASE_STORAGE_BUCKET=beta-agenteia.firebasestorage.app
-VITE_FIREBASE_MESSAGING_SENDER_ID=722604246706
-VITE_FIREBASE_APP_ID=1:722604246706:web:10c596ef5bba477f196bab
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
 ```
 
 ### .env.example (a criar)
