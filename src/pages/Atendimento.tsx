@@ -18,7 +18,7 @@ import { useContatos } from '@/hooks/useContatos'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/ui/toast'
 import { useIAConfig } from '@/hooks/useIAConfig'
-import { chamarGroq, montarHistoricoGroq } from '@/services/ia/groqService'
+import { montarHistoricoGroq } from '@/services/ia/groqService'
 import { chamarIAComAgenda } from '@/services/ia/iaAgendaService'
 import { SimuladorIA } from '@/features/atendimento/SimuladorIA'
 import { getRelativeTime } from '@/lib/utils'
@@ -75,49 +75,6 @@ export function Atendimento() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [mensagens])
-
-  // ── Resposta automática da IA ──────────────────────────────
-  const ultimaMensagem = mensagens[mensagens.length - 1]
-  useEffect(() => {
-    if (!ultimaMensagem) return
-    if (ultimaMensagem.direcao !== 'entrada') return
-    if (!iaConfig.ativa) return
-    if (!groqApiKey) return
-    if (!conversaSelecionadaId || !membro) return
-
-    // Pausar se atendente humano assumiu
-    const conversa = conversas.find(c => c.id === conversaSelecionadaId)
-    if (iaConfig.pausarQuandoAtendente && conversa?.atendenteId) return
-
-    const responderComIA = async () => {
-      setIaDigitando(true)
-      try {
-        const historico = montarHistoricoGroq(
-          iaConfig.systemPrompt,
-          mensagens.map(m => ({ texto: m.texto, direcao: m.direcao }))
-        )
-        const resposta = await chamarGroq(groqApiKey, historico, iaConfig)
-        if (resposta) {
-          await enviarMensagem({
-            conversaId: conversaSelecionadaId,
-            texto: resposta,
-            tipo: 'texto',
-            direcao: 'saida',
-            remetenteId: 'ia',
-            status: 'enviada',
-          })
-        }
-      } catch (e) {
-        console.error('[IA] Erro ao responder:', e)
-      } finally {
-        setIaDigitando(false)
-      }
-    }
-
-    // Pequeno delay para parecer natural
-    const timer = setTimeout(responderComIA, 1200)
-    return () => clearTimeout(timer)
-  }, [ultimaMensagem?.id])
 
   // Zerar não lidas ao selecionar conversa
   const selecionarConversa = useCallback(async (conversa: Conversa) => {
@@ -176,7 +133,8 @@ export function Atendimento() {
         setShowSugestoes(false)
 
         // IA responde automaticamente com integração de agenda
-        if (iaConfig.ativa && groqApiKey && empresa) {
+        const iaPausadaPeloAtendente = iaConfig.pausarQuandoAtendente && !!conversaAtual?.atendenteId
+        if (iaConfig.ativa && groqApiKey && empresa && !iaPausadaPeloAtendente) {
           setIaDigitando(true)
           try {
             const historico = montarHistoricoGroq(
