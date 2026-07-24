@@ -2,7 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, MessageSquare, Users, BarChart3, Settings,
-  User, ChevronLeft, ChevronRight, Zap, LogOut,
+  User, ChevronLeft, ChevronRight, LogOut,
   BookOpen, BarChart2, UserCheck, Calendar
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -10,6 +10,7 @@ import { StatusDot } from '@/components/ui/status-dot'
 import { useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissao } from '@/hooks/usePermissao'
+import logoIcon from '@/assets/logo-icon.png'
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
@@ -72,8 +73,8 @@ export function Sidebar() {
       {/* Logo */}
       <div className="flex items-center h-16 px-4 border-b border-border shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-blue-500 flex items-center justify-center shrink-0 shadow-lg shadow-violet-500/30">
-            <Zap className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-blue-500 flex items-center justify-center shrink-0 shadow-lg shadow-violet-500/30 p-1.5">
+            <img src={logoIcon} alt="FoxIA" className="w-full h-full object-contain" />
           </div>
           <AnimatePresence>
             {!collapsed && (
@@ -83,7 +84,7 @@ export function Sidebar() {
                 exit={{ opacity: 0, x: -10 }}
                 transition={{ duration: 0.2 }}
               >
-                <span className="font-bold text-sm gradient-text">AgentAI</span>
+                <span className="font-bold text-sm gradient-text">FoxIA</span>
                 <p className="text-[10px] text-muted-foreground leading-none mt-0.5">Platform</p>
               </motion.div>
             )}

@@ -31,10 +31,10 @@ const integrations = [
 ]
 
 const teamMembers = [
-  { name: 'Arthur Neves', email: 'arthur@agentai.com.br', role: 'Admin', status: 'active' as const },
-  { name: 'Ana Lima', email: 'ana@agentai.com.br', role: 'Vendedor', status: 'active' as const },
-  { name: 'Carlos Rocha', email: 'carlos@agentai.com.br', role: 'Vendedor', status: 'active' as const },
-  { name: 'Pedro Matos', email: 'pedro@agentai.com.br', role: 'Supervisor', status: 'inactive' as const },
+  { name: 'Arthur Neves', email: 'arthur@foxia.com.br', role: 'Admin', status: 'active' as const },
+  { name: 'Ana Lima', email: 'ana@foxia.com.br', role: 'Vendedor', status: 'active' as const },
+  { name: 'Carlos Rocha', email: 'carlos@foxia.com.br', role: 'Vendedor', status: 'active' as const },
+  { name: 'Pedro Matos', email: 'pedro@foxia.com.br', role: 'Supervisor', status: 'inactive' as const },
 ]
 
 export function Settings() {
@@ -172,7 +172,7 @@ export function Settings() {
                 { label: 'Phone Number ID', value: '123456789012345' },
                 { label: 'Business Account ID', value: '987654321098765' },
                 { label: 'Access Token', value: 'EAAxxxxxxxxxxxxxxxxxxxxxx' },
-                { label: 'Webhook URL', value: 'https://api.agentai.com.br/webhook' },
+                { label: 'Webhook URL', value: 'https://api.foxia.com.br/webhook' },
               ].map(f => (
                 <div key={f.label}>
                   <label className="text-xs font-medium text-muted-foreground block mb-1.5">{f.label}</label>

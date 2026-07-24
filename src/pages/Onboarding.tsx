@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Zap, Building, ArrowRight, Loader2, LogOut } from 'lucide-react'
+import { Building, ArrowRight, Loader2, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/hooks/useAuth'
@@ -10,6 +10,7 @@ import { db } from '@/services/firebase/firebase'
 import { criarEmpresa } from '@/services/empresas/empresaService'
 import { criarMembro } from '@/services/empresas/membroService'
 import { criarEtapasPadrao } from '@/services/crm/etapaFunilService'
+import logoIcon from '@/assets/logo-icon.png'
 
 export function Onboarding() {
   const { usuario, logout } = useAuth()
@@ -66,10 +67,10 @@ export function Onboarding() {
       >
         {/* Logo */}
         <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-blue-500 flex items-center justify-center shadow-lg shadow-violet-500/30">
-            <Zap className="w-5 h-5 text-white" />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-blue-500 flex items-center justify-center shadow-lg shadow-violet-500/30 p-2">
+            <img src={logoIcon} alt="FoxIA" className="w-full h-full object-contain" />
           </div>
-          <span className="font-bold text-xl gradient-text">AgentAI</span>
+          <span className="font-bold text-xl gradient-text">FoxIA</span>
         </div>
 
         <div className="bg-card border border-border rounded-2xl p-8 shadow-xl">

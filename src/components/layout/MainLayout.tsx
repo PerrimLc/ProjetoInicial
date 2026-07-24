@@ -26,7 +26,7 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
 
 export function MainLayout() {
   const location = useLocation()
-  const page = pageTitles[location.pathname] ?? { title: 'AgentAI', subtitle: '' }
+  const page = pageTitles[location.pathname] ?? { title: 'FoxIA', subtitle: '' }
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">

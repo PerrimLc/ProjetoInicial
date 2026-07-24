@@ -97,19 +97,19 @@ const intentMap: Partial<Record<IntentKey, IntentMap>> = {
     keywords: ['oi', 'olá', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'hey', 'hello', 'tudo bem', 'como vai', 'bom dia'],
     replies: {
       aria: [
-        'Oi! Que bom falar com você hoje 😊 Sou a Aria, especialista em atendimento aqui da AgentAI. Antes de qualquer coisa — como você está? Em que posso te ajudar hoje?',
+        'Oi! Que bom falar com você hoje 😊 Sou a Aria, especialista em atendimento aqui da FoxIA. Antes de qualquer coisa — como você está? Em que posso te ajudar hoje?',
         'Olá! Fico muito feliz com o seu contato 💙 Sou a Aria e estou aqui para te ajudar no que precisar. Me conta, o que está buscando?',
       ],
       max: [
-        'Olá! Aqui é o Max, consultor de soluções da AgentAI. Fico feliz com o seu contato. Para eu te ajudar da forma mais eficiente, me conta: você está buscando melhorar o atendimento, aumentar as vendas ou as duas coisas?',
+        'Olá! Aqui é o Max, consultor de soluções da FoxIA. Fico feliz com o seu contato. Para eu te ajudar da forma mais eficiente, me conta: você está buscando melhorar o atendimento, aumentar as vendas ou as duas coisas?',
         'Bom dia! Sou o Max, e trabalho com empresas que querem escalar resultados com IA. O que te trouxe até nós hoje?',
       ],
       luna: [
-        'Oi oi! 😄 Aqui é a Luna! Fico muito animada com o seu contato — pode acreditar que você chegou no lugar certo! Me conta rapidinho: o que despertou seu interesse na AgentAI?',
-        'Oiii! Que bom te ver por aqui! 🎉 Sou a Luna, SDR da AgentAI. Antes de tudo, me conta: você chegou até a gente por qual canal?',
+        'Oi oi! 😄 Aqui é a Luna! Fico muito animada com o seu contato — pode acreditar que você chegou no lugar certo! Me conta rapidinho: o que despertou seu interesse na FoxIA?',
+        'Oiii! Que bom te ver por aqui! 🎉 Sou a Luna, SDR da FoxIA. Antes de tudo, me conta: você chegou até a gente por qual canal?',
       ],
       neo: [
-        'Olá. Aqui é o Neo, do time de suporte técnico da AgentAI. Como posso ajudá-lo hoje?',
+        'Olá. Aqui é o Neo, do time de suporte técnico da FoxIA. Como posso ajudá-lo hoje?',
         'Bom dia. Sou o Neo, especialista técnico. Pode descrever o que precisa?',
       ],
       eva: [
@@ -117,7 +117,7 @@ const intentMap: Partial<Record<IntentKey, IntentMap>> = {
         'Olá! Aqui é a Eva! Estou sempre de olho no sucesso dos nossos clientes 😊 O que posso fazer por você hoje?',
       ],
       kai: [
-        'Oi! 🔥 Aqui é o Kai, especialista em crescimento e marketing da AgentAI! Que ótimo que você entrou em contato. O que está buscando?',
+        'Oi! 🔥 Aqui é o Kai, especialista em crescimento e marketing da FoxIA! Que ótimo que você entrou em contato. O que está buscando?',
         'Oi! Kai aqui! 🚀 Sempre animado quando alguém quer escalar resultados. Me conta, o que te trouxe até a gente?',
       ],
     },

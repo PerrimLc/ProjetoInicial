@@ -141,10 +141,10 @@ export const mockFlows: Flow[] = [
 ]
 
 export const defaultSettings: AppSettings = {
-  companyName: 'AgentAI Ltda.',
-  companyEmail: 'contato@agentai.com.br',
+  companyName: 'FoxIA Ltda.',
+  companyEmail: 'contato@foxia.com.br',
   companyPhone: '+55 11 3000-0000',
-  companyWebsite: 'https://agentai.com.br',
+  companyWebsite: 'https://foxia.com.br',
   whatsappConnected: true,
   openaiKey: 'sk-••••••••••••••••••••••••••••••',
   defaultModel: 'GPT-4o',
@@ -159,10 +159,10 @@ export const defaultSettings: AppSettings = {
 export const defaultProfile: UserProfile = {
   name: 'Arthur',
   lastName: 'Neves',
-  email: 'arthur@agentai.com.br',
+  email: 'arthur@foxia.com.br',
   phone: '+55 11 99999-8888',
   role: 'Diretor Comercial',
-  company: 'AgentAI Ltda.',
+  company: 'FoxIA Ltda.',
   website: 'https://arthurneves.com.br',
   plan: 'Pro',
   avatar: '',
