@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Building2, Users, Layers, GitBranch, Tag, Zap, Bot, Clock, GitMerge } from 'lucide-react'
+import { Building2, Users, Layers, GitBranch, Tag, Zap, Bot, Clock, GitMerge, MessageCircle } from 'lucide-react'
 import { AbaEmpresa } from '@/features/configuracoes/AbaEmpresa'
 import { AbaEquipe } from '@/features/configuracoes/AbaEquipe'
 import { AbaSetores } from '@/features/configuracoes/AbaSetores'
@@ -8,10 +8,11 @@ import { AbaEtapasFunil } from '@/features/configuracoes/AbaEtapasFunil'
 import { AbaEtiquetas } from '@/features/configuracoes/AbaEtiquetas'
 import { AbaRespostasRapidas } from '@/features/configuracoes/AbaRespostasRapidas'
 import { AbaIA } from '@/features/configuracoes/AbaIA'
+import { AbaWhatsApp } from '@/features/configuracoes/AbaWhatsApp'
 import { AbaHorarios } from '@/features/configuracoes/AbaHorarios'
 import { AbaFilas } from '@/features/configuracoes/AbaFilas'
 
-type AbaId = 'empresa' | 'equipe' | 'setores' | 'etapas' | 'etiquetas' | 'respostas' | 'ia' | 'horarios' | 'filas'
+type AbaId = 'empresa' | 'equipe' | 'setores' | 'etapas' | 'etiquetas' | 'respostas' | 'ia' | 'whatsapp' | 'horarios' | 'filas'
 
 const abas = [
   { id: 'empresa' as AbaId,   label: 'Empresa',          icon: Building2 },
@@ -23,6 +24,7 @@ const abas = [
   { id: 'horarios' as AbaId,  label: 'Horários',          icon: Clock },
   { id: 'filas' as AbaId,     label: 'Filas',             icon: GitMerge },
   { id: 'ia' as AbaId,        label: 'Agente de IA',      icon: Bot },
+  { id: 'whatsapp' as AbaId,  label: 'WhatsApp',          icon: MessageCircle },
 ]
 
 export function Configuracoes() {
@@ -56,6 +58,7 @@ export function Configuracoes() {
         {abaAtiva === 'horarios'  && <AbaHorarios />}
         {abaAtiva === 'filas'     && <AbaFilas />}
         {abaAtiva === 'ia'        && <AbaIA />}
+        {abaAtiva === 'whatsapp'  && <AbaWhatsApp />}
       </div>
     </motion.div>
   )

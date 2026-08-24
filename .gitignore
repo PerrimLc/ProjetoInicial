@@ -12,6 +12,14 @@ dist
 dist-ssr
 *.local
 
+# Cloud Functions build output
+functions/lib
+
+# Firebase CLI local state/logs
+.firebase
+firebase-debug.log
+firebase-debug.*.log
+
 # Environment variables
 .env
 .env.*
