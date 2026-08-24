@@ -139,7 +139,10 @@ export function Atendimento() {
           try {
             const historico = montarHistoricoGroq(
               iaConfig.systemPrompt,
-              mensagens.map(m => ({ texto: m.texto, direcao: m.direcao }))
+              [
+                ...mensagens.map(m => ({ texto: m.texto, direcao: m.direcao })),
+                { texto: texto.trim(), direcao: 'entrada' as const },
+              ]
             )
             const resultado = await chamarIAComAgenda(
               groqApiKey,
