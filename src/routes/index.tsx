@@ -114,7 +114,14 @@ export const router = createBrowserRouter([
       { path: 'atendimento', element: <Atendimento /> },
       { path: 'contatos', element: <Contatos /> },
       { path: 'respostas-rapidas', element: <RespostasRapidas /> },
-      { path: 'relatorios', element: <Relatorios /> },
+      {
+        path: 'relatorios',
+        element: (
+          <PermissionRoute papeis={['administrador', 'supervisor']}>
+            <Relatorios />
+          </PermissionRoute>
+        ),
+      },
       {
         path: 'equipe',
         element: (
@@ -125,10 +132,21 @@ export const router = createBrowserRouter([
       },
       {
         path: 'configuracoes',
-        element: <Configuracoes />,
+        element: (
+          <PermissionRoute papeis={['administrador']}>
+            <Configuracoes />
+          </PermissionRoute>
+        ),
       },
       // Keep /settings working too
-      { path: 'settings', element: <Settings /> },
+      {
+        path: 'settings',
+        element: (
+          <PermissionRoute papeis={['administrador']}>
+            <Settings />
+          </PermissionRoute>
+        ),
+      },
     ],
   },
 ])
