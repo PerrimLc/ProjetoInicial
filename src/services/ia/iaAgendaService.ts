@@ -1,10 +1,15 @@
 /**
- * IA com integração de Agenda
+ * IA com integração de Agenda + CRM (Kanban)
  *
- * Estratégia: token especial.
- * A IA é instruída a incluir um token JSON no final da mensagem quando confirmar
- * um agendamento: [[AGENDAR:INDEX]]
- * Isso é 100% confiável — não depende de parsing de texto livre nem de segunda chamada.
+ * Estratégia: tokens especiais no final da mensagem da IA.
+ * A IA é instruída a incluir um token quando realizar uma ação real:
+ *   [[AGENDAR:N]]              → cria um agendamento no slot de índice N
+ *   [[NEGOCIO_ETAPA:Nome]]     → cria/move a oportunidade do contato para a etapa "Nome"
+ *   [[NEGOCIO_GANHO]]          → marca a oportunidade do contato como ganha
+ *   [[NEGOCIO_PERDIDO]]        → marca a oportunidade do contato como perdida
+ *
+ * Isso é 100% confiável — não depende de parsing de texto livre nem de
+ * segunda chamada à API para "decidir" a ação.
  */
 
 import {
@@ -13,7 +18,16 @@ import {
   calcularSlotsLivres,
   criarAgendamento,
 } from '@/services/agenda/agendaService'
+import { listarEtapas } from '@/services/crm/etapaFunilService'
+import {
+  listarNegocios,
+  criarNegocio,
+  moverNegocio,
+  marcarGanho,
+  marcarPerdido,
+} from '@/services/crm/negocioService'
 import { type MensagemGroq, type ConfiguracaoIA } from '@/services/ia/groqService'
+import type { EtapaFunil, Negocio } from '@/types'
 
 const DIAS_PT = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado']
 const MESES_PT = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']
@@ -25,6 +39,14 @@ function formatarSlot(data: Date): string {
   const h = data.getHours().toString().padStart(2, '0')
   const min = data.getMinutes().toString().padStart(2, '0')
   return `${dia}, ${d} de ${m} às ${h}:${min}`
+}
+
+function normalizar(texto: string): string {
+  return texto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
 }
 
 async function buscarProximosSlotsLivres(
@@ -53,21 +75,50 @@ async function buscarProximosSlotsLivres(
   return slotsLivres
 }
 
-/**
- * Extrai o token [[AGENDAR:N]] da resposta e remove-o do texto exibido ao usuário.
- * Retorna { texto limpo, indiceSlot } ou null se não houver token.
- */
-function extrairTokenAgendamento(resposta: string): { textoLimpo: string; indiceSlot: number } | null {
-  const match = resposta.match(/\[\[AGENDAR:(\d+)\]\]/i)
-  if (!match) return null
-  const idx = parseInt(match[1], 10)
-  const textoLimpo = resposta.replace(/\[\[AGENDAR:\d+\]\]/gi, '').trim()
-  return { textoLimpo, indiceSlot: idx }
+async function buscarNegocioAbertoDoContato(
+  empresaId: string,
+  contatoId: string
+): Promise<Negocio | null> {
+  const negocios = await listarNegocios(empresaId, { contatoId, status: 'aberto' })
+  return negocios[0] ?? null
 }
 
-export interface RespostaIAComAgenda {
+/**
+ * Extrai todos os tokens de ação reconhecidos na resposta da IA de uma vez só,
+ * e devolve o texto já limpo (sem nenhum token visível ao usuário final).
+ */
+function extrairAcoes(resposta: string): {
+  textoLimpo: string
+  indiceSlot: number | null
+  etapaNome: string | null
+  ganho: boolean
+  perdido: boolean
+} {
+  const agendarMatch = resposta.match(/\[\[AGENDAR:(\d+)\]\]/i)
+  const etapaMatch = resposta.match(/\[\[NEGOCIO_ETAPA:([^\]]+)\]\]/i)
+  const ganho = /\[\[NEGOCIO_GANHO\]\]/i.test(resposta)
+  const perdido = /\[\[NEGOCIO_PERDIDO\]\]/i.test(resposta)
+
+  const textoLimpo = resposta
+    .replace(/\[\[AGENDAR:\d+\]\]/gi, '')
+    .replace(/\[\[NEGOCIO_ETAPA:[^\]]+\]\]/gi, '')
+    .replace(/\[\[NEGOCIO_GANHO\]\]/gi, '')
+    .replace(/\[\[NEGOCIO_PERDIDO\]\]/gi, '')
+    .trim()
+
+  return {
+    textoLimpo,
+    indiceSlot: agendarMatch ? parseInt(agendarMatch[1], 10) : null,
+    etapaNome: etapaMatch ? etapaMatch[1].trim() : null,
+    ganho,
+    perdido,
+  }
+}
+
+export interface RespostaIAComAcoes {
   texto: string
   agendamentoCriado?: { data: Date; label: string }
+  negocioAtualizado?: { etapaNome?: string; resultado?: 'ganho' | 'perdido' }
 }
 
 export async function chamarIAComAgenda(
@@ -76,48 +127,84 @@ export async function chamarIAComAgenda(
   systemPrompt: string,
   historico: MensagemGroq[],
   config: Partial<ConfiguracaoIA>,
-  contatoNome: string
-): Promise<RespostaIAComAgenda> {
+  contatoNome: string,
+  contatoId?: string
+): Promise<RespostaIAComAcoes> {
   const modelo = config.modelo ?? 'llama-3.3-70b-versatile'
 
-  // 1. Buscar slots livres
+  // 1. Slots de agenda livres
   const slots = await buscarProximosSlotsLivres(empresaId)
-  console.log('[IA Agenda] Slots disponíveis:', slots.map(s => s.label))
 
-  // 2. Montar contexto de agenda com instruções do token especial
+  // 2. Etapas do funil + oportunidade atual do contato (para o CRM/Kanban)
+  let etapas: EtapaFunil[] = []
+  let negocioAtual: Negocio | null = null
+  if (contatoId) {
+    try {
+      etapas = await listarEtapas(empresaId)
+      negocioAtual = await buscarNegocioAbertoDoContato(empresaId, contatoId)
+    } catch (e) {
+      console.error('[IA Ações] Erro ao buscar etapas/negócio do contato:', e)
+    }
+  }
+
+  // 3. Montar contexto dinâmico de agenda
   let contextoAgenda: string
   if (slots.length > 0) {
     contextoAgenda = `
 
 [SISTEMA DE AGENDA - LEIA COM ATENÇÃO]
-Horários disponíveis para consulta (R$ 300,00 — dinheiro ou PIX):
+Horários disponíveis:
 ${slots.map((s, i) => `${i}: ${s.label}`).join('\n')}
 
-REGRA OBRIGATÓRIA: Quando o cliente confirmar um horário e você disser que a consulta foi agendada/confirmada/marcada, você DEVE incluir exatamente este token no final da sua mensagem (sem espaço antes):
+REGRA OBRIGATÓRIA: quando o cliente confirmar um horário e você disser que ficou agendado/marcado/confirmado, termine sua mensagem com este token (sem espaço antes):
 [[AGENDAR:N]]
-Onde N é o número do índice do horário escolhido acima (0, 1, 2, etc.)
-
-Exemplo: Se o cliente confirmou o horário de índice 2, termine com: [[AGENDAR:2]]
-Nunca inclua este token se não houve confirmação do cliente.`
+Onde N é o índice do horário escolhido acima (0, 1, 2, etc.)
+Nunca inclua este token se o cliente ainda não confirmou.`
   } else {
     contextoAgenda = `
 
 [SISTEMA DE AGENDA]
-Não há horários disponíveis nos próximos 14 dias. Informe o cliente gentilmente que a agenda está lotada e que entrarão em contato.`
+Não há horários disponíveis nos próximos 14 dias. Informe o cliente gentilmente que a agenda está cheia e que a equipe entrará em contato.`
   }
 
-  const systemComAgenda: MensagemGroq = {
+  // 3b. Montar contexto dinâmico de CRM/Kanban (só se houver contato vinculado)
+  let contextoKanban = ''
+  if (contatoId && etapas.length > 0) {
+    const etapaAtualNome = negocioAtual
+      ? etapas.find(e => e.id === negocioAtual!.etapaId)?.nome
+      : null
+
+    contextoKanban = `
+
+[SISTEMA DE CRM/KANBAN - LEIA COM ATENÇÃO]
+Etapas existentes no funil de vendas: ${etapas.map(e => e.nome).join(', ')}.
+${negocioAtual
+      ? `Este contato já tem uma oportunidade aberta, atualmente na etapa "${etapaAtualNome}".`
+      : 'Este contato ainda não tem nenhuma oportunidade aberta no funil.'}
+
+REGRAS OBRIGATÓRIAS:
+- Quando a conversa avançar claramente de etapa (ex: cliente pediu uma proposta, começou a negociar valores/condições), termine sua mensagem com:
+[[NEGOCIO_ETAPA:Nome Exato Da Etapa]]
+usando exatamente um dos nomes de etapa listados acima.
+- Quando o cliente confirmar que vai fechar negócio/comprar, termine com:
+[[NEGOCIO_GANHO]]
+- Quando o cliente disser claramente que não tem mais interesse ou desistiu, termine com:
+[[NEGOCIO_PERDIDO]]
+- Use no máximo um desses tokens por resposta, apenas quando fizer sentido real. Não force uma mudança de etapa a cada mensagem.`
+  }
+
+  const systemComContexto: MensagemGroq = {
     role: 'system',
-    content: systemPrompt + contextoAgenda,
+    content: systemPrompt + contextoAgenda + contextoKanban,
   }
 
-  // 3. Montar mensagens — filtra system duplicado se existir
+  // 4. Montar mensagens — filtra system duplicado se existir
   const mensagensParaGroq: MensagemGroq[] = [
-    systemComAgenda,
+    systemComContexto,
     ...historico.filter(m => m.role !== 'system'),
   ]
 
-  // 4. Chamada à Groq
+  // 5. Chamada à Groq
   const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -142,36 +229,75 @@ Não há horários disponíveis nos próximos 14 dias. Informe o cliente gentilm
 
   const data = await response.json() as { choices: { message: { content: string } }[] }
   const textoResposta = data.choices[0]?.message?.content ?? ''
-  console.log('[IA Agenda] Resposta bruta:', textoResposta)
 
-  // 5. Detectar token e criar agendamento
-  const tokenInfo = extrairTokenAgendamento(textoResposta)
-  console.log('[IA Agenda] Token detectado:', tokenInfo)
+  // 6. Extrair todas as ações de uma vez e limpar o texto exibido ao usuário
+  const acoes = extrairAcoes(textoResposta)
+  const resultado: RespostaIAComAcoes = { texto: acoes.textoLimpo }
 
-  if (tokenInfo && tokenInfo.indiceSlot >= 0 && tokenInfo.indiceSlot < slots.length) {
-    const slotEscolhido = slots[tokenInfo.indiceSlot]
+  // 6a. Executar agendamento, se houver
+  if (acoes.indiceSlot !== null && acoes.indiceSlot >= 0 && acoes.indiceSlot < slots.length) {
+    const slotEscolhido = slots[acoes.indiceSlot]
     try {
       await criarAgendamento(empresaId, {
-        titulo: `Consulta jurídica — ${contatoNome}`,
+        titulo: `Atendimento — ${contatoNome}`,
         tipo: 'reuniao',
+        ...(contatoId ? { contatoId } : {}),
         contatoNome,
         data: slotEscolhido.slot,
         duracaoMin: 60,
         status: 'agendado',
-        observacoes: 'Agendado via assistente de IA. Valor: R$ 300,00 (dinheiro ou PIX)',
+        observacoes: 'Agendado automaticamente pela IA de atendimento via WhatsApp.',
       })
-      console.log('[IA Agenda] Agendamento criado:', slotEscolhido.label)
-      return {
-        texto: tokenInfo.textoLimpo,
-        agendamentoCriado: { data: slotEscolhido.slot, label: slotEscolhido.label },
-      }
+      resultado.agendamentoCriado = { data: slotEscolhido.slot, label: slotEscolhido.label }
     } catch (e) {
-      console.error('[IA Agenda] Erro ao criar agendamento:', e)
-      return { texto: tokenInfo.textoLimpo }
+      console.error('[IA Ações] Erro ao criar agendamento:', e)
     }
   }
 
-  // Remove token mesmo se índice inválido, para não exibir ao usuário
-  const textoFinal = textoResposta.replace(/\[\[AGENDAR:\d+\]\]/gi, '').trim()
-  return { texto: textoFinal }
+  // 6b. Executar mudança de etapa no Kanban, se houver e se houver contato vinculado
+  if (acoes.etapaNome && contatoId) {
+    try {
+      const etapaAlvo = etapas.find(e => normalizar(e.nome) === normalizar(acoes.etapaNome!))
+      if (etapaAlvo) {
+        if (negocioAtual) {
+          await moverNegocio(empresaId, negocioAtual.id, etapaAlvo.id)
+        } else {
+          await criarNegocio(empresaId, {
+            titulo: `Oportunidade — ${contatoNome}`,
+            contatoId,
+            contatoNome,
+            etapaId: etapaAlvo.id,
+            prioridade: 'media',
+            status: 'aberto',
+            origem: 'ia',
+          })
+        }
+        resultado.negocioAtualizado = { etapaNome: etapaAlvo.nome }
+      } else {
+        console.warn('[IA Ações] Etapa não encontrada:', acoes.etapaNome)
+      }
+    } catch (e) {
+      console.error('[IA Ações] Erro ao atualizar etapa do negócio:', e)
+    }
+  }
+
+  // 6c. Marcar ganho/perdido, se houver e se houver contato vinculado
+  if ((acoes.ganho || acoes.perdido) && contatoId) {
+    try {
+      const alvo = negocioAtual ?? await buscarNegocioAbertoDoContato(empresaId, contatoId)
+      if (alvo) {
+        if (acoes.ganho) {
+          await marcarGanho(empresaId, alvo.id)
+          resultado.negocioAtualizado = { resultado: 'ganho' }
+        } else {
+          await marcarPerdido(empresaId, alvo.id)
+          resultado.negocioAtualizado = { resultado: 'perdido' }
+        }
+      }
+    } catch (e) {
+      console.error('[IA Ações] Erro ao marcar resultado do negócio:', e)
+    }
+  }
+
+  return resultado
 }

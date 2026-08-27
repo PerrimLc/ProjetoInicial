@@ -1,22 +1,14 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { MainLayout } from '@/components/layout/MainLayout'
 import { Dashboard } from '@/pages/Dashboard'
-import { Conversations } from '@/pages/Conversations'
 import { Atendimento } from '@/pages/Atendimento'
-import { Leads } from '@/pages/Leads'
-import { Agents } from '@/pages/Agents'
-import { Flows } from '@/pages/Flows'
 import { CRM } from '@/pages/CRM'
 import { Contatos } from '@/pages/Contatos'
 import { AgendaNew } from '@/pages/AgendaNew'
-import { Knowledge } from '@/pages/Knowledge'
-import { Analytics } from '@/pages/Analytics'
 import { Relatorios } from '@/pages/Relatorios'
 import { Equipe } from '@/pages/Equipe'
-import { Settings } from '@/pages/Settings'
 import { Configuracoes } from '@/pages/Configuracoes'
 import { RespostasRapidas } from '@/pages/RespostasRapidas'
-import { Profile } from '@/pages/Profile'
 import { Login } from '@/pages/Login'
 import { Onboarding } from '@/pages/Onboarding'
 import { LoadingPage } from '@/components/common/LoadingPage'
@@ -100,17 +92,8 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <Dashboard /> },
-      // Legacy routes (keep working during migration)
-      { path: 'conversations', element: <Conversations /> },
-      { path: 'leads', element: <Leads /> },
-      { path: 'agents', element: <Agents /> },
-      { path: 'flows', element: <Flows /> },
       { path: 'crm', element: <CRM /> },
       { path: 'agenda', element: <AgendaNew /> },
-      { path: 'knowledge', element: <Knowledge /> },
-      { path: 'analytics', element: <Analytics /> },
-      { path: 'profile', element: <Profile /> },
-      // New routes
       { path: 'atendimento', element: <Atendimento /> },
       { path: 'contatos', element: <Contatos /> },
       { path: 'respostas-rapidas', element: <RespostasRapidas /> },
@@ -127,8 +110,6 @@ export const router = createBrowserRouter([
         path: 'configuracoes',
         element: <Configuracoes />,
       },
-      // Keep /settings working too
-      { path: 'settings', element: <Settings /> },
     ],
   },
 ])

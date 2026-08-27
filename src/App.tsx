@@ -1,5 +1,4 @@
 import { RouterProvider } from 'react-router-dom'
-import { AppProvider } from '@/contexts/AppContext'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { ThemeProvider } from '@/contexts/ThemeContext'
 import { ToastProvider } from '@/components/ui/toast'
@@ -9,12 +8,9 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        {/* AppProvider is kept for pages that still use useApp() during migration */}
-        <AppProvider>
-          <ToastProvider>
-            <RouterProvider router={router} />
-          </ToastProvider>
-        </AppProvider>
+        <ToastProvider>
+          <RouterProvider router={router} />
+        </ToastProvider>
       </AuthProvider>
     </ThemeProvider>
   )
