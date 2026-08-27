@@ -46,9 +46,8 @@ export async function simularResposta(
         conversaId,
         texto,
         tipo: 'texto',
-        direcao: 'saida',
-        remetenteId: 'ia',
-        status: 'enviada',
+        direcao: 'entrada',
+        status: 'lida',
         enviadaEm: serverTimestamp(),
       }
     )

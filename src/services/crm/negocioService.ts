@@ -22,6 +22,7 @@ export async function listarNegocios(
     responsavelId?: string
     status?: StatusNegocio
     prioridade?: PrioridadeNegocio
+    contatoId?: string
   }
 ): Promise<Negocio[]> {
   try {
@@ -32,6 +33,7 @@ export async function listarNegocios(
     if (filtros?.responsavelId) constraints.push(where('responsavelId', '==', filtros.responsavelId))
     if (filtros?.status) constraints.push(where('status', '==', filtros.status))
     if (filtros?.prioridade) constraints.push(where('prioridade', '==', filtros.prioridade))
+    if (filtros?.contatoId) constraints.push(where('contatoId', '==', filtros.contatoId))
     const q = constraints.length > 0 ? query(col, ...constraints) : query(col)
     const snap = await getDocs(q)
     return snap.docs.map((d) =>

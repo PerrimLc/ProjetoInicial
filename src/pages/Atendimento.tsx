@@ -47,7 +47,7 @@ export function Atendimento() {
   const { respostas: respostasRapidas } = useRespostasRapidas()
 
   const [conversaSelecionadaId, setConversaSelecionadaId] = useState<string | null>(null)
-  const { mensagens, carregando: carregandoMensagens, enviarMensagem, simularResposta } = useMensagens(conversaSelecionadaId)
+  const { mensagens, carregando: carregandoMensagens, enviarMensagem } = useMensagens(conversaSelecionadaId)
 
   const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>('todos')
   const [busca, setBusca] = useState('')
@@ -75,6 +75,67 @@ export function Atendimento() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [mensagens])
+
+  // ── Resposta automática da IA (lê a mensagem, agenda e mexe no Kanban) ──
+  const ultimaMensagem = mensagens[mensagens.length - 1]
+  useEffect(() => {
+    if (!ultimaMensagem) return
+    if (ultimaMensagem.direcao !== 'entrada') return
+    if (!iaConfig.ativa) return
+    if (!groqApiKey) return
+    if (!conversaSelecionadaId || !membro || !empresa) return
+
+    // Pausar se atendente humano assumiu
+    const conversa = conversas.find(c => c.id === conversaSelecionadaId)
+    if (iaConfig.pausarQuandoAtendente && conversa?.atendenteId) return
+
+    const responderComIA = async () => {
+      setIaDigitando(true)
+      try {
+        const historico = montarHistoricoGroq(
+          iaConfig.systemPrompt,
+          mensagens.map(m => ({ texto: m.texto, direcao: m.direcao }))
+        )
+        const resultado = await chamarIAComAgenda(
+          groqApiKey,
+          empresa.id,
+          iaConfig.systemPrompt,
+          historico,
+          iaConfig,
+          conversa?.contatoNome ?? 'Cliente',
+          conversa?.contatoId
+        )
+        if (resultado.texto) {
+          await enviarMensagem({
+            conversaId: conversaSelecionadaId,
+            texto: resultado.texto,
+            tipo: 'texto',
+            direcao: 'saida',
+            remetenteId: 'ia',
+            status: 'enviada',
+          })
+        }
+        if (resultado.agendamentoCriado) {
+          success('📅 Agendamento criado!', resultado.agendamentoCriado.label)
+        }
+        if (resultado.negocioAtualizado?.etapaNome) {
+          success('📊 Kanban atualizado', `Oportunidade movida para "${resultado.negocioAtualizado.etapaNome}"`)
+        } else if (resultado.negocioAtualizado?.resultado === 'ganho') {
+          success('🎉 Negócio ganho!')
+        } else if (resultado.negocioAtualizado?.resultado === 'perdido') {
+          success('Negócio marcado como perdido')
+        }
+      } catch (e) {
+        console.error('[IA] Erro ao responder:', e)
+      } finally {
+        setIaDigitando(false)
+      }
+    }
+
+    // Pequeno delay para parecer natural
+    const timer = setTimeout(responderComIA, 1200)
+    return () => clearTimeout(timer)
+  }, [ultimaMensagem?.id])
 
   // Zerar não lidas ao selecionar conversa
   const selecionarConversa = useCallback(async (conversa: Conversa) => {
@@ -120,7 +181,9 @@ export function Atendimento() {
   const handleEnviar = async () => {
     if (!texto.trim() || !conversaSelecionadaId || !membro) return
     try {
-      // Modo cliente: envia como mensagem de entrada (do cliente)
+      // Modo cliente: envia como mensagem de entrada (do cliente).
+      // A resposta da IA acontece automaticamente pelo efeito de "Resposta
+      // automática" logo acima — não duplicamos a chamada aqui.
       if (modoCliente) {
         await enviarMensagem({
           conversaId: conversaSelecionadaId,
@@ -132,57 +195,8 @@ export function Atendimento() {
         setTexto('')
         setShowSugestoes(false)
 
-        // IA responde automaticamente com integração de agenda
-        const iaPausadaPeloAtendente = iaConfig.pausarQuandoAtendente && !!conversaAtual?.atendenteId
-        if (iaConfig.ativa && groqApiKey && empresa && !iaPausadaPeloAtendente) {
-          setIaDigitando(true)
-          try {
-            const historico = montarHistoricoGroq(
-              iaConfig.systemPrompt,
-              [
-                ...mensagens.map(m => ({ texto: m.texto, direcao: m.direcao })),
-                { texto: texto.trim(), direcao: 'entrada' as const },
-              ]
-            )
-            const resultado = await chamarIAComAgenda(
-              groqApiKey,
-              empresa.id,
-              iaConfig.systemPrompt,
-              historico,
-              iaConfig,
-              conversaAtual?.contatoNome ?? 'Cliente'
-            )
-            if (resultado.texto) {
-              await enviarMensagem({
-                conversaId: conversaSelecionadaId,
-                texto: resultado.texto,
-                tipo: 'texto',
-                direcao: 'saida',
-                remetenteId: 'ia',
-                status: 'enviada',
-              })
-            }
-            // Feedback visual quando agendamento é criado
-            if (resultado.agendamentoCriado) {
-              success('📅 Consulta agendada!', `${resultado.agendamentoCriado.label}`)
-            }
-          } catch (e) {
-            console.error('[Modo cliente] Erro IA:', e)
-          } finally {
-            setIaDigitando(false)
-          }
-        } else if (!iaConfig.ativa || !groqApiKey) {
-          // Se IA não configurada, simula uma resposta genérica
-          setIaDigitando(true)
-          try {
-            const frases = [
-              'Olá! Como posso ajudá-lo?',
-              'Claro, posso ajudar com isso!',
-              'Vou verificar e retorno em breve.',
-              'Qual horário seria melhor para você?',
-            ]
-            await simularResposta(frases[Math.floor(Math.random() * frases.length)])
-          } finally { setIaDigitando(false) }
+        if (!iaConfig.ativa || !groqApiKey) {
+          toastError('IA desligada ou sem chave configurada — vá em Configurações → Agente de IA para testar respostas reais.')
         }
         return
       }
